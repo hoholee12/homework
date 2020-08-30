@@ -1,0 +1,58 @@
+i guess pages are used for
+virtualizing the memory
+and virtualizing other devices?
+and they are stored in memory
+that makes sense now
+
+I wouldn't say they are stored in memory, more that they are a fixed-size unit of address space that can be mapped
+
+and they can be swapped out to devices if there needs to be more pages in memory
+
+yeah the main abstraction being made is separating the memory layout observed by the processor from the physical memory layout.
+
+and controlling access by processes
+
+this can be useful in  various ways, but mainly:
+- running multiple programs at once without having to fallback to relocations
+- separate the memory spaces for those programs for better security
+- append access control (R / W / X) information to memory regions
+- swapping out memory to a storage device
+- mapping block devices
+
+mapping block devices! so that was just one portion of what the page can do
+not the whole thing
+that confused me bit
+how does kernel allocate more pages to process that needs more memory?
+does it reuse pages? or does it create fresh new ones
+
+roughly:
+1. process calls something like mmap
+2. transition from userspace to kernelspace
+3. kernel mmap handler is executed
+4. call to virtual region allocator to find a free memory region in the process's address space
+5. call to physical page allocator to allocate free physical memory (in units of pages)
+6. map allocated memory to the allocated virtual memory region
+7. return to userspace
+
+fresh new ones
+
+pages aren't created
+
+page tables are created but not the pages themselves i think
+
+physical memory is either used or unused (the kernel keeps track of this) and virtual memory pages can be mapped to something or not mapped to anything (but might still be used for swapping e..g)
+well yeah you need to allocate physical memory for the page directories and page tables
+
+does writing stuff on mallocd memory trigger page fault?
+
+It depends on the implementation
+You can do it with or without
+The answer is a messy sometimes I guess
+
+In the x86 architecture, page directories and page tables together provide the mapping between virtual addresses (memory addresses used by applications) and physical addresses (actual locations in the physical memory hardware).
+
+A page is simply a contiguous chunk of memory. x86 (32-bit) supports 3 sizes of pages: 4MB, 2MB, and 4KB, with the latter being the most commonly used in mainstream operating systems. A page table is an array of 1024 * 32-bit entries (conveniently fitting into a single 4KB page). Each entry points to the physical address of a page. Because a single page table is not able to represent the entire address space on its own (1024 entries * 4KB = only 22-bits of address space), we require a second level page table: a page directory. A page directory also consists of 1024 * 32-bit entries (again fitting into a single page), each pointing to a page table. We can see that now 1024 * 1024 * 4KB = 32-bits and with this 3-level structure we are able to map the entire 4GB virtual address space.
+
+When the CPU is asked to access a virtual address, it uses the 10 highest order bits (31:22) to index into the page directory table (the base address of which is stored in a special register). The next 10 highest order bits (21:12) are used to index into the page table pointed to by the page directory entry. The lowest 12 order bits (11:0) are finally used to index a byte in the page pointed to by the page table entry.
+
+In other systems there may be more or fewer levels of page table required, depending on the size of the virtual address space and the page sizes supported. For example, x86 with 4MB pages only needs a single page directory. In 64-bit mode with 4KB pages, a 4-level system is used: a page mapping level 4 table contains entries that point to one of many page directories.
