@@ -10,12 +10,20 @@ typedef struct{
 void* looper_thread(void* arg){
     thread_args* myarg = arg;
     
+    //use mutex lock to do atomic operation(prevent datarace)
     pthread_mutex_lock(&myarg->lock);
-    printf("waiting...\n");
-    while(myarg->myvar != 1) pthread_cond_wait(&myarg->cond, &myarg->lock);
+//critical section starts here
+    while(myarg->myvar != 1){ 
+        printf("waiting...\n"); //only run once because cond wait
+        pthread_cond_wait(&myarg->cond, &myarg->lock);
+    }
     myarg->myvar = 2;
     printf("waiting...finished\n");
+//critical section ends here
     pthread_mutex_unlock(&myarg->lock);
+
+    //i can return address of a main stack.
+    return &myarg->myvar;
 }
 
 void* signalmaker_thread(void* arg){
@@ -39,10 +47,12 @@ int main(int argc, char* argv[]){
     pthread_create(&signalmaker, NULL, signalmaker_thread, &hello);
     pthread_create(&looper, NULL, looper_thread, &hello);
 
+    int* lol = NULL;
     pthread_join(signalmaker, NULL);
-    pthread_join(looper, NULL);
+    pthread_join(looper, &lol);
+    //thread_return needs a pointer to a void* to write it
 
-    printf("ready = %d\n", hello.myvar);
+    printf("ready = %d, return = %d\n", hello.myvar, *lol);
 
     return 0;
 }
