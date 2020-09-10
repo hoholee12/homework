@@ -1,27 +1,48 @@
 #include"common.h"
 
-volatile int counter = 0;
 
-int loops;
+typedef struct{
+    pthread_mutex_t lock;
+    pthread_cond_t cond;
+    int myvar;
+} thread_args;
 
-void* worker(void* arg){
-    for(int i = 0; i < loops; i++) counter++;
-    return NULL;
+void* looper_thread(void* arg){
+    thread_args* myarg = arg;
+    
+    pthread_mutex_lock(&myarg->lock);
+    printf("waiting...\n");
+    while(myarg->myvar != 1) pthread_cond_wait(&myarg->cond, &myarg->lock);
+    myarg->myvar = 2;
+    printf("waiting...finished\n");
+    pthread_mutex_unlock(&myarg->lock);
+}
 
+void* signalmaker_thread(void* arg){
+    thread_args* myarg = arg;
+    sleep(1);
+    pthread_mutex_lock(&myarg->lock);
+    printf("signaling...\n");
+    myarg->myvar = 1;
+    pthread_cond_signal(&myarg->cond);
+    printf("signaling...finished\n");
+    pthread_mutex_unlock(&myarg->lock);
 }
 
 int main(int argc, char* argv[]){
 
-    if(argc != 2) return 1;
-    loops = atoi(argv[1]);
-    pthread_t p1, p2;
+    pthread_t signalmaker, looper;
+    pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
+    pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+    thread_args hello = {lock, cond, 0};
 
-    pthread_create(&p1, NULL, worker, NULL);
-    pthread_create(&p2, NULL, worker, NULL);
+    pthread_create(&signalmaker, NULL, signalmaker_thread, &hello);
+    pthread_create(&looper, NULL, looper_thread, &hello);
 
-    pthread_join(p1, NULL);
-    pthread_join(p2, NULL);
-    printf("final value: %d\n", counter);
+    pthread_join(signalmaker, NULL);
+    pthread_join(looper, NULL);
+
+    printf("ready = %d\n", hello.myvar);
 
     return 0;
 }
