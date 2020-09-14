@@ -16,6 +16,7 @@
 #include<sched.h>
 #include<sys/random.h>
 #include<sys/mman.h>
+#include<stdint.h>
 
 
 double GetTime(){

@@ -42,7 +42,7 @@ int main(int argc, char* argv[]){
     pthread_t producer, consumer;
     pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
     pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
-    thread_args hello = {lock, cond, 0};
+    thread_args hello = {lock, cond, 0};    //coarse grained lock
 
     pthread_create(&producer, NULL, producer_thread, &hello);
     pthread_create(&consumer, NULL, consumer_thread, &hello);
