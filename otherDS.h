@@ -94,138 +94,6 @@ namespace simplelinkedlist{
 
 }
 
-//fucking deadlock
-namespace scalablelinkedlist{
-
-    typedef struct{
-        pthread_mutex_t real_lock = PTHREAD_MUTEX_INITIALIZER;
-        pthread_cond_t real_cond = PTHREAD_COND_INITIALIZER;
-        int old;
-    } real_locks_t;
-
-    typedef struct _node_t{
-        int key;
-        real_locks_t real_locks;    //each element has its own lock
-        struct _node_t* next;
-    } node_t;
-    typedef struct{
-        node_t* head;
-        pthread_mutex_t lock;   //one for header
-    } list_t;
-
-    typedef struct{
-        list_t list;
-        int count_correct;
-    } arg_t;
-
-    typedef struct{
-        node_t nodearr[LOOPVAL];
-    } freespace_t;
-
-    int checkempty(node_t* node){
-        printf("tid = %d, key = %d, next = %08X\n", gettid(), node->key, node->next);
-        fflush(stdout);
-        if(node->key) return 0;
-        printf("tid = %d, checkempty 1\n", gettid());
-        fflush(stdout);
-        if(node->next) return 0;
-        printf("tid = %d, checkempty 2\n", gettid());
-        fflush(stdout);
-        return 1;   //empty
-    }
-
-    node_t* nodealloc(list_t* list){
-        node_t* temp = 0;
-        printf("tid = %d, nodealloc 1\n", gettid());
-        fflush(stdout);
-        printf("tid = %d, nodealloc 2\n", gettid());
-        fflush(stdout);
-        for(int i = 0; i < LOOPVAL; i++){
-            temp = list->head;
-            printf("tid = %d, nodealloc 3\n", gettid());
-            fflush(stdout);
-            if(checkempty(temp)){
-                printf("tid = %d, nodealloc 4\n", gettid());
-                fflush(stdout);
-                temp->next = temp + sizeof(node_t);
-                break;
-            }
-        }
-        printf("tid = %d, nodealloc 5\n", gettid());
-        fflush(stdout);
-        return temp;
-    }
-
-    void insert(list_t* list, int key){
-        pthread_mutex_lock(&list->lock);    //only required on accessing list(critical section)
-        node_t* temp = nodealloc(list);
-        temp->key = key;
-        temp->next = list->head;
-        list->head = temp;
-        pthread_mutex_unlock(&list->lock);
-    }
-
-    int lookup(list_t* list, int key){
-        int result = -1;    //fail
-        pthread_mutex_lock(&list->lock);
-        node_t* temp = list->head;
-        while(temp){
-            //success
-            if(temp->key == key){
-                result = 0;
-                break;
-            }
-
-            //next node
-            temp = temp->next;
-        }
-
-        pthread_mutex_unlock(&list->lock);
-        return result;
-    }
-
-     void* afunc(void* arg){
-        arg_t* carg = (arg_t*)arg;
-        sched_getaffinity(0, 0, NULL);
-        for(int i = 0; i < LOOPVAL; i++){
-            insert(&carg->list, i);
-            carg->count_correct += -1 * lookup(&carg->list, LOOPVAL - i - 1);
-        }
-         
-    }
-
-    void* bfunc(void* arg){
-        arg_t* carg = (arg_t*)arg;
-        sched_getaffinity(0, 0, NULL);
-         for(int i = 0; i < LOOPVAL; i++){
-            insert(&carg->list, i);
-            carg->count_correct += -1 * lookup(&carg->list, LOOPVAL - i - 1);
-        }
-        return &carg->count_correct;
-    }
-
-    void test(){
-        pthread_t a, b;
-        arg_t test = {0};
-        freespace_t freespace = {0};
-        test.list.head = freespace.nodearr;
-        struct timeval first;
-        struct timeval second;
-        gettimeofday(&first, NULL);
-        pthread_create(&a, NULL, afunc, &test);
-        pthread_create(&b, NULL, bfunc, &test);
-
-        void* result = NULL;
-        pthread_join(a, NULL);
-        pthread_join(b, &result);
-
-        gettimeofday(&second, NULL);
-        if(result == &test.count_correct)
-            printf("result = %d, time taken = %dsec\n", test.count_correct, second.tv_sec - first.tv_sec);
-    }
-
-}
-
 namespace michaelscottqueue{
     typedef struct _node_t{
         int value;
@@ -323,6 +191,109 @@ namespace michaelscottqueue{
         pthread_t a, b;
         arg_t test = {0};
         initqueue(&test.queue);
+        struct timeval first;
+        struct timeval second;
+        gettimeofday(&first, NULL);
+        pthread_create(&a, NULL, afunc, &test);
+        pthread_create(&b, NULL, bfunc, &test);
+
+        void* result = NULL;
+        pthread_join(a, NULL);
+        pthread_join(b, &result);
+
+        gettimeofday(&second, NULL);
+        if(result == &test.count_correct)
+            printf("result = %d, time taken = %dsec\n", test.count_correct, second.tv_sec - first.tv_sec);
+    }
+
+}
+
+namespace hashtable{
+     typedef struct _node_t{
+        int key;
+        _node_t* next;
+    } node_t;
+    typedef struct{
+        node_t* head;
+        pthread_mutex_t lock;
+    } list_t;
+    //init can be done by {0}ing
+
+    void insert(list_t* list, int key){
+        node_t* temp = (node_t*)malloc(sizeof(node_t));
+        temp->key = key;
+        pthread_mutex_lock(&list->lock);    //only required on accessing list(critical section)
+        temp->next = list->head;
+        list->head = temp;
+        pthread_mutex_unlock(&list->lock);
+    }
+
+    int lookup(list_t* list, int key){
+        int result = -1;    //fail
+
+        pthread_mutex_lock(&list->lock);
+        node_t* temp = list->head;
+        while(temp){
+            //success
+            if(temp->key == key){
+                result = 0;
+                break;
+            }
+
+            //next node
+            temp = temp->next;
+        }
+
+        pthread_mutex_unlock(&list->lock);
+        return result;
+    }
+
+    
+    typedef struct{
+        list_t lists[LOOPVAL];
+    } hash_t;
+
+    typedef struct{
+        hash_t hash;
+        int count_correct;
+        pthread_mutex_t flock;
+    } arg_t;
+
+    void inserthash(hash_t* hash, int key){
+        insert(&hash->lists[key % LOOPVAL], key);
+    }
+
+    int lookuphash(hash_t* hash, int key){
+        return lookup(&hash->lists[key % LOOPVAL], key);
+    }
+
+     void* afunc(void* arg){
+        arg_t* carg = (arg_t*)arg;
+        sched_getaffinity(0, 0, NULL);
+        for(int i = 0; i < LOOPVAL; i++){
+            pthread_mutex_lock(&carg->flock);
+            inserthash(&carg->hash, i);
+            carg->count_correct += -1 * lookuphash(&carg->hash, LOOPVAL - i - 1);
+            pthread_mutex_unlock(&carg->flock);
+        }
+         
+    }
+
+    void* bfunc(void* arg){
+        arg_t* carg = (arg_t*)arg;
+        sched_getaffinity(0, 0, NULL);
+         for(int i = 0; i < LOOPVAL; i++){
+            pthread_mutex_lock(&carg->flock);
+            inserthash(&carg->hash, i);
+            carg->count_correct += -1 * lookuphash(&carg->hash, LOOPVAL - i - 1);
+            pthread_mutex_unlock(&carg->flock);
+        }
+        return &carg->count_correct;
+    }
+
+    void test(){
+        pthread_t a, b;
+        arg_t test = {0};
         struct timeval first;
         struct timeval second;
         gettimeofday(&first, NULL);
