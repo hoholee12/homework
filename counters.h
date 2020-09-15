@@ -134,6 +134,7 @@ namespace simplecounter_locks{
 }
 
 namespace scalablecounter_approx{
+    const int cores = 4;
     typedef struct{
         pthread_mutex_t real_lock = PTHREAD_MUTEX_INITIALIZER;
         pthread_cond_t real_cond = PTHREAD_COND_INITIALIZER;
@@ -145,8 +146,8 @@ namespace scalablecounter_approx{
         int global;
         pthread_mutex_t glock;
         //per core counter
-        int local[4];
-        pthread_mutex_t llock[4];
+        int local[cores];
+        pthread_mutex_t llock[cores];
         //update frequency
         int threshold;
     } counter_t;
@@ -157,14 +158,15 @@ namespace scalablecounter_approx{
     } arg_t;
 
     void update(counter_t* c, pid_t tid, int localamount){
-        int cpu = tid % 4;
+        int cpu = tid % cores;
+        //printf("cpu = %d\t", cpu);
         pthread_mutex_lock(&c->llock[cpu]);
         c->local[cpu] += localamount;
-        
+        //printf("local = %d\n", c->local[cpu]);
         //transfer to global
         //cover increment decrement both sides
-        if(c->local[cpu] >= c->threshold 
-        && c->local[cpu] <= -1 * c->threshold){
+        if((c->local[cpu] >= c->threshold)
+        || (c->local[cpu] <= -1 * c->threshold)){
             pthread_mutex_lock(&c->glock);
             c->global += c->local[cpu];
             pthread_mutex_unlock(&c->glock);
@@ -201,7 +203,7 @@ namespace scalablecounter_approx{
      void test(){
         pthread_t a, b;
         arg_t test = {0};
-        test.counter.threshold = 1000;
+        test.counter.threshold = LOOPVAL / 10;
         struct timeval first;
         struct timeval second;
         gettimeofday(&first, NULL);
