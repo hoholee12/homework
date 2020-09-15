@@ -560,3 +560,86 @@ namespace testandset_yield{
             printf("result = %d, time taken = %dsec\n", test.testvalue, second.tv_sec - first.tv_sec);
     }
 }
+
+//fastest perfect result
+namespace compareandswap_yield{
+
+    typedef struct{
+        int flag;
+    } lock_t;
+
+    typedef struct{
+        pthread_mutex_t real_lock = PTHREAD_MUTEX_INITIALIZER;
+        pthread_cond_t real_cond = PTHREAD_COND_INITIALIZER;
+        
+    }real_locks_t;
+
+    typedef struct{
+        real_locks_t real_lock;
+        lock_t lock;
+        int testvalue;
+    } arg_t;
+
+    //atomic compareandswap
+    int CompareAndSwap(real_locks_t* real_locks, int* ptr, int expected, int val){
+        pthread_mutex_lock(&real_locks->real_lock);
+        int old = *ptr;
+        if (old == expected) //it will not necessarily try to set 1 everytime unlike testandset
+            *ptr = val;
+        pthread_mutex_unlock(&real_locks->real_lock);
+        return old;
+    }
+
+    
+    void lock(real_locks_t* real_locks, lock_t* mutex){
+        //try to set 1(lock) until old value turns to 0(other thread unlocks)
+        while(CompareAndSwap(real_locks, &mutex->flag, 0, 1) == 1)
+            pthread_yield();   //yield
+    }
+
+    void unlock(lock_t* mutex){
+        mutex->flag = 0;
+    }
+
+
+    void* afunc(void* arg){
+        arg_t* carg = (arg_t*)arg;
+        sched_getaffinity(0, 0, NULL);
+        for(int i = 0; i < LOOPVAL; i++){
+            lock(&carg->real_lock, &carg->lock);
+            carg->testvalue++;
+            unlock(&carg->lock);
+        }
+         
+    }
+
+    void* bfunc(void* arg){
+        arg_t* carg = (arg_t*)arg;
+        sched_getaffinity(0, 0, NULL);
+         for(int i = 0; i < LOOPVAL; i++){
+            lock(&carg->real_lock, &carg->lock);
+            carg->testvalue++;
+            unlock(&carg->lock);
+        }
+        return &carg->testvalue;
+    }
+
+    void test(){
+        pthread_t a, b;
+        arg_t test = {0};
+        struct timeval first;
+        struct timeval second;
+        gettimeofday(&first, NULL);
+        pthread_create(&a, NULL, afunc, &test);
+        pthread_create(&b, NULL, bfunc, &test);
+
+        void* result = NULL;
+        pthread_join(a, NULL);
+        pthread_join(b, &result);
+
+        gettimeofday(&second, NULL);
+        if(result == &test.testvalue)
+            printf("result = %d, time taken = %dsec\n", test.testvalue, second.tv_sec - first.tv_sec);
+    }
+
+}

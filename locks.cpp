@@ -8,9 +8,11 @@ int main(int argc, char* argv[]){
     dekkerpeterson::test();
     //testandset::test();
     compareandswap::test();
+    //testandset_yield::test();
+    compareandswap_yield::test();
     llsc::test();
     fetchandadd::test();
-    //testandset_yield::test();
+    
     
     return 0;
 }

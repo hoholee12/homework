@@ -17,6 +17,12 @@
 #include<sys/random.h>
 #include<sys/mman.h>
 #include<stdint.h>
+#include<sys/syscall.h> //indirect gettid
+
+#ifdef SYS_gettid
+#define gettid() ((pid_t)syscall(SYS_gettid))
+#endif
+
 
 
 double GetTime(){
