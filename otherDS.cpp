@@ -2,8 +2,8 @@
 
 
 int main(int argc, char* argv[]){
-    simplelinkedlist::test();
-    
+    linkedlist::test();
+    handoverhandlinkedlist::test();
     michaelscottqueue::test();
 
     hashtable::test();

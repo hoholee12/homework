@@ -1,7 +1,7 @@
 #include"common.h"
 #define LOOPVAL 1000000
 
-namespace simplecounter{
+namespace sloppycounter{
     typedef struct{
         pthread_mutex_t real_lock = PTHREAD_MUTEX_INITIALIZER;
         pthread_cond_t real_cond = PTHREAD_COND_INITIALIZER;
@@ -65,7 +65,7 @@ namespace simplecounter{
     }
 }
 
-namespace simplecounter_locks{
+namespace lockedcounter{
     typedef struct{
         pthread_mutex_t real_lock = PTHREAD_MUTEX_INITIALIZER;
         pthread_cond_t real_cond = PTHREAD_COND_INITIALIZER;
