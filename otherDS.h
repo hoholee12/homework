@@ -54,10 +54,8 @@ namespace simplelinkedlist{
         arg_t* carg = (arg_t*)arg;
         sched_getaffinity(0, 0, NULL);
         for(int i = 0; i < LOOPVAL; i++){
-            pthread_mutex_lock(&carg->flock);
             insert(&carg->list, i);
             carg->count_correct += -1 * lookup(&carg->list, LOOPVAL - i - 1);
-            pthread_mutex_unlock(&carg->flock);
         }
          
     }
@@ -66,10 +64,8 @@ namespace simplelinkedlist{
         arg_t* carg = (arg_t*)arg;
         sched_getaffinity(0, 0, NULL);
          for(int i = 0; i < LOOPVAL; i++){
-            pthread_mutex_lock(&carg->flock);
             insert(&carg->list, i);
             carg->count_correct += -1 * lookup(&carg->list, LOOPVAL - i - 1);
-            pthread_mutex_unlock(&carg->flock);
         }
         return &carg->count_correct;
     }
@@ -271,10 +267,8 @@ namespace hashtable{
         arg_t* carg = (arg_t*)arg;
         sched_getaffinity(0, 0, NULL);
         for(int i = 0; i < LOOPVAL; i++){
-            pthread_mutex_lock(&carg->flock);
             inserthash(&carg->hash, i);
             carg->count_correct += -1 * lookuphash(&carg->hash, LOOPVAL - i - 1);
-            pthread_mutex_unlock(&carg->flock);
         }
          
     }
@@ -283,10 +277,8 @@ namespace hashtable{
         arg_t* carg = (arg_t*)arg;
         sched_getaffinity(0, 0, NULL);
          for(int i = 0; i < LOOPVAL; i++){
-            pthread_mutex_lock(&carg->flock);
             inserthash(&carg->hash, i);
             carg->count_correct += -1 * lookuphash(&carg->hash, LOOPVAL - i - 1);
-            pthread_mutex_unlock(&carg->flock);
         }
         return &carg->count_correct;
     }
