@@ -282,14 +282,16 @@ namespace michaelscottqueue{
 
     void* afunc(void* arg){
         arg_t* carg = (arg_t*)arg;
-        pthread_mutex_lock(&carg->flock);
+        
         sched_getaffinity(0, 0, NULL);
         for(int i = 0; i < LOOPVAL; i++){
             enqueue(&carg->queue, i);
         }
+        
+        //send signal
         carg->flag = 1;
         pthread_cond_signal(&carg->fcond);
-        pthread_mutex_unlock(&carg->flock);
+        
     }
 
     void* bfunc(void* arg){
@@ -299,9 +301,10 @@ namespace michaelscottqueue{
             enqueue(&carg->queue, i);
             
         }
-        pthread_mutex_lock(&carg->flock);
+        
+        //check if finished
         while(!carg->flag) pthread_cond_wait(&carg->fcond, &carg->flock);
-        pthread_mutex_unlock(&carg->flock);
+        
         //check
         int arr[LOOPVAL] = {0};
         int temp = 0;
