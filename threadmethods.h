@@ -180,6 +180,7 @@ namespace putandget{
         sched_getaffinity(0, 0, NULL);
 
         for(int i = 0; i < LOOPVAL; i++){
+            printf("--------------------------------\n");
             pthread_mutex_lock(&arg->real_lock.lock);
             printf("producer...locked\n");
            
@@ -194,6 +195,7 @@ namespace putandget{
                 printf("producer...skip cond\n");
             }
             put(&arg->buffer, i);
+            printf("put: %d\n", i);
             pthread_cond_signal(&arg->real_lock.cond);
             printf("producer...signal cond\n");
             pthread_mutex_unlock(&arg->real_lock.lock);
@@ -240,6 +242,140 @@ namespace putandget{
         
         pthread_join(producer, NULL);
         pthread_join(consumer, NULL);
+    }
+
+}
+
+//one cond wont be enough for more than two threads.
+/*
+consumer#1...locked
+consumer#1...wait cond(unlocked)
+producer...locked
+producer...skip cond
+put: 8
+producer...signal cond
+producer...unlocked
+    >consumer#0 sneaks in...
+consumer#0...locked
+consumer#0...skip cond
+get: 8          //consumer#0 steals data...
+consumer#0...signal cond
+consumer#0...unlocked
+    >consumer#1 resumes after wait()...
+consumer#1...receive cond(locked)
+get: -1         //no data for consumer#1...
+consumer#1...signal cond
+consumer#1...unlocked
+*/
+namespace putandget_twoconsumers{
+     typedef struct{
+        pthread_mutex_t lock;
+        pthread_cond_t cond;
+    } real_lock_t;
+    typedef struct{
+        int value;
+        int count;
+    } buffer_t;
+    typedef struct{
+        real_lock_t real_lock;
+        int result;
+        buffer_t buffer;
+    } arg_t;
+
+    void put(buffer_t* buffer, int value){
+        //only one allowed in buffer
+        if(buffer->count == 0){
+            buffer->count = 1;
+            buffer->value = value;
+        }
+    }
+    int get(buffer_t* buffer){
+        if(buffer->count == 1){
+            buffer->count = 0;
+            return buffer->value;
+        }
+        return -1;
+    }
+
+    void* producer_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        sched_getaffinity(0, 0, NULL);
+
+        for(int i = 0; i < LOOPVAL; i++){
+            printf("--------------------------------\n");
+            pthread_mutex_lock(&arg->real_lock.lock);
+            printf("producer...locked\n");
+           
+            //wait until get() happens on consumer thread
+            if(arg->buffer.count == 1){
+                printf("producer...wait cond(unlocked)\n");
+                //wait() unlocks mutex and then locks again on receiving signal!
+                //this is why the other thread is able to send signal with locks on
+                pthread_cond_wait(&arg->real_lock.cond, &arg->real_lock.lock);
+                printf("producer...receive cond(locked)\n");
+            }
+            else{
+                printf("producer...skip cond\n");
+            }
+            put(&arg->buffer, i);
+            printf("put: %d\n", i);
+            pthread_cond_signal(&arg->real_lock.cond);
+            printf("producer...signal cond\n");
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            printf("producer...unlocked\n");
+        }
+
+        //inform end to consumers
+        arg->result = 1;
+        printf("ending producer.\n");
+        
+    }
+    void* consumer_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        sched_getaffinity(0, 0, NULL);
+
+        pid_t tid = gettid() % 2;
+
+        for(int i = 0; !arg->result; i++){
+            
+            pthread_mutex_lock(&arg->real_lock.lock);
+
+            printf("consumer#%d...locked\n", tid);
+            if(arg->buffer.count == 0){
+                printf("consumer#%d...wait cond(unlocked)\n", tid);
+                //wait() unlocks mutex and then locks again on receiving signal!
+                //this is why the other thread is able to send signal with locks on
+                pthread_cond_wait(&arg->real_lock.cond, &arg->real_lock.lock);
+                printf("consumer#%d...receive cond(locked)\n", tid);
+            }
+            else{
+                printf("consumer#%d...skip cond\n", tid);
+            }
+            printf("get: %d\n", get(&arg->buffer));
+            pthread_cond_signal(&arg->real_lock.cond);
+            printf("consumer#%d...signal cond\n", tid);
+            
+
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            printf("consumer#%d...unlocked\n", tid);
+        }
+
+        printf("ending consumer#%d.\n", tid);
+    }
+
+    void test(){
+        pthread_t producer, consumer0, consumer1;
+        producer = consumer0 = consumer1 = 0;
+        arg_t arg = {0};
+        
+
+        pthread_create(&producer, NULL, producer_thread, &arg);
+        pthread_create(&consumer0, NULL, consumer_thread, &arg);
+        pthread_create(&consumer1, NULL, consumer_thread, &arg);
+        
+        pthread_join(producer, NULL);
+        pthread_join(consumer0, NULL);
+        pthread_join(consumer1, NULL);
     }
 
 }

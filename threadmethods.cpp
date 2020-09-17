@@ -6,6 +6,7 @@ int main(int argc, char* argv[]){
     waitforthread::test();
     nolockjoin::test();
 
-    putandget::test();
+    //putandget::test();
+    putandget_twoconsumers::test();
     return 0;
 }
