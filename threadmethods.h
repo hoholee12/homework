@@ -384,12 +384,10 @@ namespace putandget_twoconsumers{
 /*
 producer...locked
 producer...wait cond(unlocked)
-consumer#1...unlocked
-consumer#0...locked
-consumer#0...skip cond
+consumer#1...receive cond(locked)
 get: 8
-consumer#0...signal cond
-consumer#0...unlocked
+consumer#1...signal cond
+consumer#1...unlocked
 consumer#1...locked
 consumer#1...wait cond(unlocked)
 producer...receive cond(locked)
@@ -397,15 +395,17 @@ put: 9
 producer...signal cond
 producer...unlocked
 ending producer.
-consumer#1...receive cond(locked)
-get: 9
-consumer#1...signal cond
-consumer#1...unlocked
-ending consumer#1.
 consumer#0...locked
-consumer#0...wait cond(unlocked)
+consumer#0...skip cond
+get: 9
+consumer#0...signal cond
+consumer#0...unlocked
+ending consumer#0.
+    > while loop makes sure that you wait again when data is not there.
+consumer#1...receive cond(locked)
+consumer#1...wait cond(unlocked)
 
-no more data misses(although deadlock)
+no more data misses
 */
 namespace putandget_mesasemantics{
      typedef struct{
