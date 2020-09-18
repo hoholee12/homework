@@ -669,6 +669,7 @@ namespace putandget_twoconds{
 }
 
 //make producer fill buffer enough for two consumers to eat without starving.
+//reduces context switching(more efficient)
 /*
 producer...locked
 producer...skip cond
