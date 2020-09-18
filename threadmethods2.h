@@ -49,6 +49,7 @@ namespace covering_conditions{
             printf("producer\n");
             arg->arr[i] = (int*)alloc(&arg->real_lock, &arg->alloc, sizeof(int));
             *arg->arr[i] = i * 10;
+            sched_yield();
         }
     }
     void* consumer_thread(void* arg_tmp){
