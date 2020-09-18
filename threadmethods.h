@@ -669,9 +669,39 @@ namespace putandget_twoconds{
 }
 
 //make producer fill buffer enough for two consumers to eat without starving.
+/*
+producer...locked
+producer...skip cond
+buffer[0] is put
+put: 8
+producer...signal 'fill' cond
+consumer#1...receive 'fill' cond(locked)
+buffer[0] is get
+get: 8
+consumer#1...signal 'empty' cond
+consumer#1...unlocked
+consumer#1...locked
+consumer#1...wait 'fill' cond(unlocked)
+producer...unlocked
+consumer#0...locked
+consumer#0...wait 'fill' cond(unlocked)
+producer...locked
+producer...skip cond
+buffer[1] is put
+put: 9
+producer...signal 'fill' cond
+producer...unlocked
+ending producer.
+consumer#1...receive 'fill' cond(locked)
+buffer[1] is get
+get: 9
+consumer#1...signal 'empty' cond
+consumer#1...unlocked
+ending consumer#1.
+*/
 namespace putandget_twoconds_withbuffer{
 
-#define MAX 2
+#define MAX 2   //could be larger
      typedef struct{
         pthread_mutex_t lock;
         pthread_cond_t empty;
