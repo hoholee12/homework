@@ -96,7 +96,7 @@ on thread_join, flag is 0 and just before executing wait(),
 child somehow interrupts parent's thread_join and finished thread_exit procedure.
 when thread_join resumes, it is stuck on wait() with no signal to catch.
 
-its not the if/while. always hold the lock on signal/wait.
+always hold the lock on signal/wait.
 
 */
 namespace nolockjoin{
@@ -401,7 +401,7 @@ get: 9
 consumer#0...signal cond
 consumer#0...unlocked
 ending consumer#0.
-    > while loop makes sure that you wait again when data is not there.
+    > while loop makes sure that you wait again when data is not there.(spurious wakeup)
 consumer#1...receive cond(locked)
 consumer#1...wait cond(unlocked)
 
@@ -593,6 +593,130 @@ namespace putandget_twoconds{
             //wait until get() happens on consumer thread
             if(arg->buffer.count == 1){
                 while(arg->buffer.count == 1){
+                    printf("producer...wait 'empty' cond(unlocked)\n");
+                    //wait() unlocks mutex and then locks again on receiving signal!
+                    //this is why the other thread is able to send signal with locks on
+                    pthread_cond_wait(&arg->real_lock.empty, &arg->real_lock.lock);
+                    printf("producer...receive 'empty' cond(locked)\n");
+                }
+            }
+            else{
+                printf("producer...skip cond\n");
+            }
+            put(&arg->buffer, i);
+            printf("put: %d\n", i);
+            pthread_cond_signal(&arg->real_lock.fill);
+            printf("producer...signal 'fill' cond\n");
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            printf("producer...unlocked\n");
+        }
+
+        //inform end to consumers
+        arg->result = 1;
+        printf("ending producer.\n");
+        
+    }
+    void* consumer_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        sched_getaffinity(0, 0, NULL);
+
+        pid_t tid = gettid() % 2;
+
+        for(int i = 0; !arg->result; i++){
+            
+            pthread_mutex_lock(&arg->real_lock.lock);
+
+            printf("consumer#%d...locked\n", tid);
+            if(arg->buffer.count == 0){
+                while(arg->buffer.count == 0){
+                    printf("consumer#%d...wait 'fill' cond(unlocked)\n", tid);
+                    //wait() unlocks mutex and then locks again on receiving signal!
+                    //this is why the other thread is able to send signal with locks on
+                    pthread_cond_wait(&arg->real_lock.fill, &arg->real_lock.lock);
+                    printf("consumer#%d...receive 'fill' cond(locked)\n", tid);
+                }
+            }
+            else{
+                printf("consumer#%d...skip cond\n", tid);
+            }
+            printf("get: %d\n", get(&arg->buffer));
+            pthread_cond_signal(&arg->real_lock.empty);
+            printf("consumer#%d...signal 'empty' cond\n", tid);
+            
+
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            printf("consumer#%d...unlocked\n", tid);
+        }
+
+        printf("ending consumer#%d.\n", tid);
+    }
+
+    void test(){
+        pthread_t producer, consumer0, consumer1;
+        producer = consumer0 = consumer1 = 0;
+        arg_t arg = {0};
+        
+
+        pthread_create(&producer, NULL, producer_thread, &arg);
+        pthread_create(&consumer0, NULL, consumer_thread, &arg);
+        pthread_create(&consumer1, NULL, consumer_thread, &arg);
+        
+        pthread_join(producer, NULL);
+        pthread_join(consumer0, NULL);
+        pthread_join(consumer1, NULL);
+    }
+
+}
+
+//make producer fill buffer enough for two consumers to eat without starving.
+namespace putandget_twoconds_withbuffer{
+
+#define MAX 2
+     typedef struct{
+        pthread_mutex_t lock;
+        pthread_cond_t empty;
+        pthread_cond_t fill;
+    } real_lock_t;
+    typedef struct{
+        int arr[MAX];
+        int fill_index;
+        int use_index;
+        int count;
+    } buffer_t;
+    typedef struct{
+        real_lock_t real_lock;
+        int result;
+        buffer_t buffer;
+    } arg_t;
+
+    void put(buffer_t* buffer, int value){
+        buffer->arr[buffer->fill_index] = value;
+        printf("buffer[%d] is put\n", buffer->fill_index);
+        buffer->fill_index = (buffer->fill_index + 1) % MAX;
+
+        buffer->count++;
+    }
+    int get(buffer_t* buffer){
+       int temp = buffer->arr[buffer->use_index];
+       printf("buffer[%d] is get\n", buffer->use_index);
+       buffer->use_index = (buffer->use_index + 1) % MAX;
+       
+       buffer->count--;
+       return temp;
+    }
+
+    void* producer_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        sched_getaffinity(0, 0, NULL);
+
+        for(int i = 0; i < LOOPVAL; i++){
+            printf("--------------------------------\n");
+            pthread_mutex_lock(&arg->real_lock.lock);
+            printf("producer...locked\n");
+           
+            //wait until get() happens on consumer thread
+            if(arg->buffer.count == MAX){
+                while(arg->buffer.count == MAX){
                     printf("producer...wait 'empty' cond(unlocked)\n");
                     //wait() unlocks mutex and then locks again on receiving signal!
                     //this is why the other thread is able to send signal with locks on

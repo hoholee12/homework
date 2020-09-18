@@ -9,6 +9,7 @@ int main(int argc, char* argv[]){
     //putandget::test();
     //putandget_twoconsumers::test();
     //putandget_mesasemantics::test();
-    putandget_twoconds::test();
+    //putandget_twoconds::test();
+    putandget_twoconds_withbuffer::test();
     return 0;
 }
