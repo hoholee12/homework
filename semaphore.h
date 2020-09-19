@@ -107,7 +107,7 @@ namespace putandget{
 
     void* producer_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        //sleep(1);   //to get it evenly running for the test
+        sleep(1);   //to get it evenly running for the test
         for(int i = 0; i < LOOPVAL; i++){
             printf("producer..."); printsem("sem(empty) wait", &arg->real_lock.empty);
             sem_wait(&arg->real_lock.empty);
@@ -117,9 +117,11 @@ namespace putandget{
             printf("producer..."); printsem("sem(full) post", &arg->real_lock.full);
             sem_post(&arg->real_lock.full);
             printf("producer..."); printsem("sem(full) post finished", &arg->real_lock.full);
-            //sched_yield();  //to get it evenly running for the test
+            sched_yield();  //to get it evenly running for the test
         }
         printf("producer finished.\n");
+        printsem("empty", &arg->real_lock.empty);
+        printsem("full", &arg->real_lock.full);
     }
 
     void* consumer_thread(void* arg_tmp){
@@ -153,6 +155,9 @@ namespace putandget{
         pthread_join(producer, NULL);
         pthread_join(consumer, NULL);
         printf("end\n");
+
+        printsem("empty", &arg.real_lock.empty);
+        printsem("full", &arg.real_lock.full);
         
     }
 
