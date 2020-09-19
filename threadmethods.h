@@ -728,6 +728,7 @@ namespace putandget_twoconds_withbuffer{
         buffer->count++;
     }
     int get(buffer_t* buffer){
+        if(buffer->count == 0) return -1;
        int temp = buffer->arr[buffer->use_index];
        printf("buffer[%d] is get\n", buffer->use_index);
        buffer->use_index = (buffer->use_index + 1) % MAX;

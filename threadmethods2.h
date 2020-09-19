@@ -78,7 +78,7 @@ namespace covering_conditions{
 }
 
 //broadcast wakes all waiting threads
-namespace covering_conditions_boradcast{
+namespace covering_conditions_broadcast{
 #define MAX_HEAP_SIZE 100
 
     typedef struct{
