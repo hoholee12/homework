@@ -296,7 +296,6 @@ namespace putandget_mutex{
         buffer->use_index = (buffer->use_index + 1) % MAX;
         buffer->count--;
         return temp;
-
     }
 
     void* producer_thread(void* arg_tmp){
@@ -382,14 +381,113 @@ namespace putandget_mutex{
 namespace simple_readwritelock{
 
     typedef struct{
-        sem_t lock;
-        sem_t writelock;
-        int readers;
+        sem_t lock;         //binary semaphore
+        sem_t writelock;    //for writer:reader = 1:n ratio
+        int readers;        //critical section
     } rwlock_t;
+
+#define MAX 10
+    typedef struct{
+        int arr[MAX];
+        int fill_index;
+        int use_index;
+        int count;
+    } buffer_t;
+    
+    typedef struct{
+        rwlock_t rwlock;
+        buffer_t buffer;
+    } arg_t;
+
+    void put(buffer_t* buffer, int value){
+        buffer->arr[buffer->fill_index] = value;
+        buffer->fill_index = (buffer->fill_index + 1) % MAX;
+        buffer->count++;
+    }
+    int get(buffer_t* buffer){
+        if(buffer->count == 0) return -1;
+        int temp = buffer->arr[buffer->use_index];
+        buffer->use_index = (buffer->use_index + 1) % MAX;
+        buffer->count--;
+        return temp;
+    }
 
     void rwlock_init(rwlock_t* rwlock){
         rwlock->readers = 0;
+        //binary semaphores: init to 1
         sem_init(&rwlock->lock, 0, 1);
+        sem_init(&rwlock->writelock, 0, 1);
+    }
+
+    void rwlock_acquire_readlock(rwlock_t* rwlock){
+        sem_wait(&rwlock->lock);
+        rwlock->readers++;
+        if(rwlock->readers == 1)
+            sem_wait(&rwlock->writelock);
+        sem_post(&rwlock->lock);
+    }
+
+    void rwlock_release_readlock(rwlock_t* rwlock){
+        sem_wait(&rwlock->lock);
+        rwlock->readers--;
+        if(rwlock->readers == 0)
+            sem_wait(&rwlock->writelock);
+        sem_post(&rwlock->lock);
+    }
+
+    void rwlock_acquire_writelock(rwlock_t* rwlock){
+        sem_wait(&rwlock->writelock);
+    }
+    
+    void rwlock_release_writelock(rwlock_t* rwlock){
+        sem_post(&rwlock->writelock);
+    }
+
+    void* writer_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        for(int i = 0; i < LOOPVAL; i++){
+            printf("writer 0\n");
+            rwlock_acquire_readlock(&arg->rwlock);
+            printf("writer 1\n");
+            for(int j = 0; j < MAX; j++){
+                put(&arg->buffer, i * j);
+            }
+            printf("writer 2\n");
+            rwlock_release_readlock(&arg->rwlock);
+            printf("writer 3\n");
+        }
+    }
+
+    void* reader_thread(void* arg_tmp){
+        arg_t* arg = (arg_t*)arg_tmp;
+        pid_t pid = gettid() % MAX;
+        int temp = 0;
+        while(temp < (LOOPVAL - 2) * MAX){
+            rwlock_acquire_writelock(&arg->rwlock);
+            temp = get(&arg->buffer);
+            printf("%d\n", temp);
+            rwlock_release_writelock(&arg->rwlock);
+        }
+    }
+
+    void test(){
+        arg_t arg = {0};
+        rwlock_init(&arg.rwlock);
+        
+        pthread_t writer = 0;
+        pthread_t reader[MAX] = {0};
+
+        printf("begin\n");
+        pthread_create(&writer, NULL, writer_thread, &arg);
+        for(int i = 0; i < MAX; i++)
+            pthread_create(&reader[i], NULL, reader_thread, &arg);
+
+        pthread_join(writer, NULL);
+        for(int i = 0; i < MAX; i++)
+            pthread_join(reader[i], NULL);
+        
+        printf("end\n");
+
     }
 
 }
