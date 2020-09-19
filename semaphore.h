@@ -2,14 +2,23 @@
 #include"common.h"
 #define LOOPVAL 10
 
+/*
+sem_wait(): DECREMENTS(--) value of semaphore
+            set value to "s - 1".
+            if "s is negative" it will wait.
+
+sem_post(): INCREMENTS(++) value of semaphore
+            
+            
+*/
 namespace binary{
     void test(){
         sem_t sem;
         sem_init(&sem, 0, 1);   //init to 1
 
-        sem_wait(&sem);
+        sem_wait(&sem); //0
         //critical section
-        sem_post(&sem);
+        sem_post(&sem); //1
 
     }
 
@@ -27,19 +36,29 @@ namespace parentchild{
         sem_t sem;
     } arg_t;
 
+    void printsem(const char* str, sem_t* sem){
+        int semval = 0;
+        sem_getvalue(sem, &semval);
+        printf("%s = %d\n", str, semval);
+    }
+
     void* child_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        sem_post(&arg->sem);
+        sem_post(&arg->sem);    //2
+        printsem("sem", &arg->sem);
         return NULL;
     }
 
     void test(){
         arg_t arg = {0};
         sem_init(&arg.sem, 0, 1);   //init to 1
+        printsem("sem", &arg.sem);
         pthread_t child;
         printf("begin\n");
         pthread_create(&child, NULL, child_thread, &arg);
-        sem_wait(&arg.sem);
+        sleep(1);
+        sem_wait(&arg.sem);     //1
+        printsem("sem", &arg.sem);
         printf("end\n");
         
 
@@ -66,6 +85,12 @@ namespace putandget{
         buffer_t buffer;
     } arg_t;
 
+    void printsem(const char* str, sem_t* sem){
+        int semval = 0;
+        sem_getvalue(sem, &semval);
+        printf("%s = %d\n", str, semval);
+    }
+
     void put(buffer_t* buffer, int value){
         buffer->arr[buffer->fill_index] = value;
         buffer->fill_index = (buffer->fill_index + 1) % MAX;
@@ -82,17 +107,17 @@ namespace putandget{
 
     void* producer_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        sleep(1);
+        //sleep(1);   //to get it evenly running for the test
         for(int i = 0; i < LOOPVAL; i++){
-            printf("producer... sem(empty) wait\n");
+            printf("producer..."); printsem("sem(empty) wait", &arg->real_lock.empty);
             sem_wait(&arg->real_lock.empty);
-            printf("producer... sem(empty) wait finished\n");
+            printf("producer..."); printsem("sem(empty) wait finished", &arg->real_lock.empty);
             put(&arg->buffer, i);
             printf("put: %d\n", i);
-            printf("producer... sem(full) post\n");
+            printf("producer..."); printsem("sem(full) post", &arg->real_lock.full);
             sem_post(&arg->real_lock.full);
-            printf("producer... sem(full) post finished\n");
-            sched_yield();
+            printf("producer..."); printsem("sem(full) post finished", &arg->real_lock.full);
+            //sched_yield();  //to get it evenly running for the test
         }
         printf("producer finished.\n");
     }
@@ -101,14 +126,14 @@ namespace putandget{
         arg_t* arg = (arg_t*)arg_tmp;
         int temp = 0;
         while(temp != LOOPVAL - 1){ //producer ends at LOOPVAL - 1
-            printf("consumer... sem(full) wait\n");
+            printf("consumer..."); printsem("sem(full) wait", &arg->real_lock.full);
             sem_wait(&arg->real_lock.full);
-            printf("consumer... sem(full) wait finished\n");
+            printf("consumer..."); printsem("sem(full) wait finished", &arg->real_lock.full);
             temp = get(&arg->buffer);
             printf("get: %d\n", temp);
-            printf("consumer... sem(empty) post\n");
+            printf("consumer..."); printsem("sem(empty) post", &arg->real_lock.empty);
             sem_post(&arg->real_lock.empty);
-            printf("consumer... sem(empty) post finished\n");
+            printf("consumer..."); printsem("sem(empty) post finished", &arg->real_lock.empty);
         }
         printf("consumer finished.\n");
     }
@@ -117,6 +142,9 @@ namespace putandget{
         arg_t arg = {0};
         sem_init(&arg.real_lock.empty, 0, MAX);
         sem_init(&arg.real_lock.full, 0, 0);
+        printsem("empty", &arg.real_lock.empty);
+        printsem("full", &arg.real_lock.full);
+
         pthread_t producer = 0, consumer = 0;
         printf("begin\n");
         pthread_create(&producer, NULL, producer_thread, &arg);

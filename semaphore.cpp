@@ -1,7 +1,7 @@
 #include"semaphore.h"
 
 int main(int argc, char* argv[]){
-    parentchild::test();
+    //parentchild::test();
 
     putandget::test();
 
