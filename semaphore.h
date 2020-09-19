@@ -3,13 +3,16 @@
 #define LOOPVAL 10
 
 /*
-sem_wait(): DECREMENTS(--) value of semaphore
-            set value to "s - 1".
-            if "s is negative" it will wait.
+P(s), sem_wait(s):
+    s.value = s.value - 1 
+    if (s.value < 0)
+        yield to other thread
+    else
+        continue
 
-sem_post(): INCREMENTS(++) value of semaphore
-            
-            
+V(s), sem_post(s):
+    s.value = s.value + 1
+    continue
 */
 namespace binary{
     void test(){
@@ -67,8 +70,10 @@ namespace parentchild{
 }
 
 /*
+these are "counting semaphore"s:
 empty = 10
 full = 0
+used to control multiple instances
 
 producer empty--, full++
 consumer empty++, full--
@@ -89,6 +94,7 @@ namespace putandget{
     typedef struct{
         sem_t empty;
         sem_t full;
+        sem_t lock;
     } real_lock_t;
     
     typedef struct{
@@ -118,17 +124,22 @@ namespace putandget{
 
     void* producer_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        sleep(1);   //to get it evenly running for the test
+        //sleep(1);   //to get it evenly running for the test
         for(int i = 0; i < LOOPVAL; i++){
             printf("producer..."); printsem("sem(empty) wait", &arg->real_lock.empty);
             sem_wait(&arg->real_lock.empty);
             printf("producer..."); printsem("sem(empty) wait finished", &arg->real_lock.empty);
+            //printsem("producer...lock", &arg->real_lock.lock);
+            //sem_wait(&arg->real_lock.lock);
+            //printsem("producer...lock", &arg->real_lock.lock);
             put(&arg->buffer, i);
+            //sem_post(&arg->real_lock.lock);
+            //printsem("producer...lock", &arg->real_lock.lock);
             printf("put: %d\n", i);
             printf("producer..."); printsem("sem(full) post", &arg->real_lock.full);
             sem_post(&arg->real_lock.full);
             printf("producer..."); printsem("sem(full) post finished", &arg->real_lock.full);
-            sched_yield();  //to get it evenly running for the test
+            //sched_yield();  //to get it evenly running for the test
         }
         printf("producer finished.\n");
         printsem("empty", &arg->real_lock.empty);
@@ -142,7 +153,12 @@ namespace putandget{
             printf("consumer..."); printsem("sem(full) wait", &arg->real_lock.full);
             sem_wait(&arg->real_lock.full);
             printf("consumer..."); printsem("sem(full) wait finished", &arg->real_lock.full);
+            //printsem("consumer...lock", &arg->real_lock.lock);
+            //sem_wait(&arg->real_lock.lock);
+            //printsem("consumer...lock", &arg->real_lock.lock);
             temp = get(&arg->buffer);
+            //sem_post(&arg->real_lock.lock);
+            //printsem("consumer...lock", &arg->real_lock.lock);
             printf("get: %d\n", temp);
             printf("consumer..."); printsem("sem(empty) post", &arg->real_lock.empty);
             sem_post(&arg->real_lock.empty);
@@ -155,20 +171,25 @@ namespace putandget{
         arg_t arg = {0};
         sem_init(&arg.real_lock.empty, 0, MAX);
         sem_init(&arg.real_lock.full, 0, 0);
+        sem_init(&arg.real_lock.lock, 0, 1);
         printsem("empty", &arg.real_lock.empty);
         printsem("full", &arg.real_lock.full);
+        printsem("lock", &arg.real_lock.lock);
 
-        pthread_t producer = 0, consumer = 0;
+        pthread_t producer_a = 0, producer_b = 0, consumer = 0;
         printf("begin\n");
-        pthread_create(&producer, NULL, producer_thread, &arg);
+        pthread_create(&producer_a, NULL, producer_thread, &arg);
+        pthread_create(&producer_b, NULL, producer_thread, &arg);
         pthread_create(&consumer, NULL, consumer_thread, &arg);
 
-        pthread_join(producer, NULL);
+        pthread_join(producer_a, NULL);
+        pthread_join(producer_b, NULL);
         pthread_join(consumer, NULL);
         printf("end\n");
 
         printsem("empty", &arg.real_lock.empty);
         printsem("full", &arg.real_lock.full);
+        printsem("lock", &arg.real_lock.lock);
         
     }
 
@@ -176,6 +197,7 @@ namespace putandget{
 
 //above example ignores mutual exclusion
 //lock to prevent data race
+//"binary semaphore": mutex lock
 namespace putandget_mutex{
 #define MAX 10
     typedef struct{
@@ -218,7 +240,7 @@ namespace putandget_mutex{
 
     void* producer_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        sleep(1);   //to get it evenly running for the test
+        //sleep(1);   //to get it evenly running for the test
         for(int i = 0; i < LOOPVAL; i++){
             printf("producer..."); printsem("sem(empty) wait", &arg->real_lock.empty);
             sem_wait(&arg->real_lock.empty);
@@ -233,7 +255,7 @@ namespace putandget_mutex{
             printf("producer..."); printsem("sem(full) post", &arg->real_lock.full);
             sem_post(&arg->real_lock.full);
             printf("producer..."); printsem("sem(full) post finished", &arg->real_lock.full);
-            sched_yield();  //to get it evenly running for the test
+            //sched_yield();  //to get it evenly running for the test
         }
         printf("producer finished.\n");
         printsem("empty", &arg->real_lock.empty);
@@ -270,12 +292,14 @@ namespace putandget_mutex{
         printsem("full", &arg.real_lock.full);
         printsem("lock", &arg.real_lock.lock);
 
-        pthread_t producer = 0, consumer = 0;
+        pthread_t producer_a = 0, producer_b = 0, consumer = 0;
         printf("begin\n");
-        pthread_create(&producer, NULL, producer_thread, &arg);
+        pthread_create(&producer_a, NULL, producer_thread, &arg);
+        pthread_create(&producer_b, NULL, producer_thread, &arg);
         pthread_create(&consumer, NULL, consumer_thread, &arg);
 
-        pthread_join(producer, NULL);
+        pthread_join(producer_a, NULL);
+        pthread_join(producer_b, NULL);
         pthread_join(consumer, NULL);
         printf("end\n");
 
@@ -286,3 +310,4 @@ namespace putandget_mutex{
     }
 
 }
+
