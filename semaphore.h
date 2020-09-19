@@ -6,14 +6,14 @@
 P(s), sem_wait(s):
     s.value = s.value - 1 
     if (s.value < 0)
-        enqueue to 'sleep state'
+        change myself to 'sleep state'
     else
         continue
 
 V(s), sem_post(s):
     s.value = s.value + 1
-    if (threads waiting in sleep queue)
-        dequeue(random one) to 'ready state'    //system gets to decide when to interrupt and run
+    if (waiting threads in 'sleep state')
+        change random one to 'ready state'    //system gets to decide when to interrupt and run
     continue
 */
 namespace binary{
@@ -270,7 +270,8 @@ namespace putandget_mutex{
     typedef struct{
         sem_t empty;
         sem_t full;
-        sem_t lock;
+        //sem_t lock;
+        pthread_mutex_t lock;
     } real_lock_t;
     
     typedef struct{
@@ -306,12 +307,14 @@ namespace putandget_mutex{
             printf("#%d ", pid); printsem("producer...sem(empty) wait", &arg->real_lock.empty);
             sem_wait(&arg->real_lock.empty);
             printf("#%d ", pid); printsem("producer...sem(empty) wait finished", &arg->real_lock.empty);
-            printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
-            sem_wait(&arg->real_lock.lock);
-            printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
+            //printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
+            //sem_wait(&arg->real_lock.lock);
+            //printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
+            pthread_mutex_lock(&arg->real_lock.lock);
             put(&arg->buffer, i);
-            sem_post(&arg->real_lock.lock);
-            printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            //sem_post(&arg->real_lock.lock);
+            //printf("#%d ", pid); printsem("producer...lock", &arg->real_lock.lock);
             printf("put: %d\n", i);
             printf("#%d ", pid); printsem("producer...sem(full) post", &arg->real_lock.full);
             sem_post(&arg->real_lock.full);
@@ -332,12 +335,14 @@ namespace putandget_mutex{
             printsem("consumer...sem(full) wait", &arg->real_lock.full);
             sem_wait(&arg->real_lock.full);
             printsem("consumer...sem(full) wait finished", &arg->real_lock.full);
-            printsem("consumer...lock", &arg->real_lock.lock);
-            sem_wait(&arg->real_lock.lock);
-            printsem("consumer...lock", &arg->real_lock.lock);
+            //printsem("consumer...lock", &arg->real_lock.lock);
+            //sem_wait(&arg->real_lock.lock);
+            //printsem("consumer...lock", &arg->real_lock.lock);
+            pthread_mutex_lock(&arg->real_lock.lock);
             temp = get(&arg->buffer);
-            sem_post(&arg->real_lock.lock);
-            printsem("consumer...lock", &arg->real_lock.lock);
+            pthread_mutex_unlock(&arg->real_lock.lock);
+            //sem_post(&arg->real_lock.lock);
+            //printsem("consumer...lock", &arg->real_lock.lock);
             printf("get: %d\n", temp);
             printsem("consumer...sem(empty) post", &arg->real_lock.empty);
             sem_post(&arg->real_lock.empty);
@@ -350,10 +355,10 @@ namespace putandget_mutex{
         arg_t arg = {0};
         sem_init(&arg.real_lock.empty, 0, MAX);
         sem_init(&arg.real_lock.full, 0, 0);
-        sem_init(&arg.real_lock.lock, 0, 1);
+        //sem_init(&arg.real_lock.lock, 0, 1);
         printsem("empty", &arg.real_lock.empty);
         printsem("full", &arg.real_lock.full);
-        printsem("lock", &arg.real_lock.lock);
+        //printsem("lock", &arg.real_lock.lock);
 
         pthread_t producer_a = 0, producer_b = 0, consumer = 0;
         printf("begin\n");
@@ -368,9 +373,20 @@ namespace putandget_mutex{
 
         printsem("empty", &arg.real_lock.empty);
         printsem("full", &arg.real_lock.full);
-        printsem("lock", &arg.real_lock.lock);
+        //printsem("lock", &arg.real_lock.lock);
         
     }
 
 }
 
+namespace rwlock{
+
+    typedef struct{
+        sem_t lock;
+        sem_t writelock;
+        int readers;
+    } rwlock_t;
+
+
+
+}
