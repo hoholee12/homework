@@ -19,6 +19,7 @@
 #include<stdint.h>
 #include<sys/syscall.h> //indirect gettid
 #include<semaphore.h>
+#include<stdarg.h>
 
 #ifdef SYS_gettid
 #define gettid() ((pid_t)syscall(SYS_gettid))

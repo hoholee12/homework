@@ -145,6 +145,7 @@ namespace nolockjoin{
 
 }
 
+//producer/consumer, bounded buffer problem
 namespace putandget{
      typedef struct{
         pthread_mutex_t lock;
