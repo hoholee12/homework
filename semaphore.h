@@ -399,12 +399,16 @@ namespace putandget_mutex{
 
 }
 
+
+//lock: for readlock
+//writelock: for writelock
 namespace simple_readwritelock{
 
     typedef struct{
         sem_t lock;         //binary semaphore
-        sem_t writelock;    //for writer:reader = 1:n ratio
         int readers;        //critical section
+
+        sem_t writelock;    //for writer:reader = 1:n ratio
     } rwlock_t;
 
 #define MAX 10
@@ -417,7 +421,7 @@ namespace simple_readwritelock{
     
     typedef struct{
         rwlock_t* rwlock;
-        buffer_t buffer;
+        buffer_t* buffer;
         int p; //id
     } arg_t;
 
@@ -438,6 +442,7 @@ namespace simple_readwritelock{
     void put(buffer_t* buffer, int value){
         buffer->arr[buffer->fill_index] = value;
         buffer->fill_index = (buffer->fill_index + 1) % MAX;
+        printf("a buffer count = %d\n", buffer->count);
         buffer->count++;
     }
     int get(buffer_t* buffer){
@@ -458,8 +463,9 @@ namespace simple_readwritelock{
     void rwlock_acquire_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
         rwlock->readers++;
-        if(rwlock->readers == 1)
+        if(rwlock->readers == 1)    //
             sem_wait(&rwlock->writelock);
+        printsem("after readlock acquire, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
     }
 
@@ -468,15 +474,18 @@ namespace simple_readwritelock{
         rwlock->readers--;
         if(rwlock->readers == 0)
             sem_wait(&rwlock->writelock);
+        printsem("after readlock release, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
     }
 
     void rwlock_acquire_writelock(rwlock_t* rwlock){
         sem_wait(&rwlock->writelock);
+        printsem("after writelock acquire, writelock wait", &rwlock->writelock);
     }
     
     void rwlock_release_writelock(rwlock_t* rwlock){
         sem_post(&rwlock->writelock);
+        printsem("after writelock release, writelock post", &rwlock->writelock);
     }
 
     void* writer_thread(void* arg_tmp){
@@ -487,12 +496,12 @@ namespace simple_readwritelock{
             printf("writer 1\n");
             for(int j = 0; j < MAX; j++){
                 printf("writer[%d] = %d\n", j, i * j);
-                put(&arg->buffer, i * j);
+                put(arg->buffer, i * j);
             }
             printf("writer 2\n");
             rwlock_release_writelock(arg->rwlock);
             printf("writer 3\n");
-            sleep(1);
+            //sleep(1);
             
         }
         printf("writer ended.\n");
@@ -501,11 +510,12 @@ namespace simple_readwritelock{
     void* reader_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
         pid_t pid = arg->p;
-        while(arg->buffer.count > 0){
+        printf("b buffer count = %d\n", arg->buffer->count);
+        while(arg->buffer->count > 0){
             printf("reader#%d 0\n", pid);
             rwlock_acquire_readlock(arg->rwlock);
             printf("reader#%d 1\n", pid);
-            printf("reader#%d = %d\n", pid, arg->buffer.arr[pid]);
+            printf("reader#%d = %d\n", pid, arg->buffer->arr[pid]);
             printf("reader#%d 2\n", pid);
             rwlock_release_readlock(arg->rwlock);
             printf("reader#%d 3\n", pid);
@@ -516,13 +526,17 @@ namespace simple_readwritelock{
     void test(){
         arg_t writer_arg = {0};
         arg_t reader_args[MAX] = {0};
+        //to be shared by all threads.
         rwlock_t rwlock;
+        buffer_t buffer;
         rwlock_init(&rwlock);
 
         writer_arg.rwlock = &rwlock;
+        writer_arg.buffer = &buffer;
         for(int i = 0; i < MAX; i++){
             reader_args[i].rwlock = &rwlock;
             reader_args[i].p = i;
+            reader_args[i].buffer = &buffer;
         }
 
         sem_init(&printlock, 0, 1);
