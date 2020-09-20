@@ -558,8 +558,10 @@ namespace diningtable{
     }
 
     void get_forks(int p){
-        //break dependency on last philosopher by looking at right first
-        //solve deadlock
+        //break dependency on any one of the philosopher(last one for example)
+        //by switching which one to lookup
+        
+        //solves deadlock
         
         if(p == MAX - 1){
             printf(">>>>>>>>>>>>>>>>>switched ");
