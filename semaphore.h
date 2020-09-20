@@ -1,6 +1,6 @@
 #pragma once
 #include"common.h"
-#define LOOPVAL 10
+#define LOOPVAL 20
 
 /*
 P(s), sem_wait(s):
@@ -514,30 +514,67 @@ namespace simple_readwritelock{
 }
 
 //dining philosophers problem(round table)
+/*
+thread#8 thinks...
+philosopher#8 = 1
+wait myself: philosopher#8 = 0
+wait right: philosopher#9 = 0
+thread#8 eats...
+philosopher#8 ends.
+thread#9 thinks...
+>>>>>>>>>>>>>>>>>switched philosopher#9 = 1
+wait right: philosopher#0 = 0
+wait myself: philosopher#9 = 0
+thread#9 eats...
+*/
 namespace diningtable{
 #define MAX 10
 
     sem_t forks[MAX];
+    sem_t printlock;
+
     typedef struct{
         int num_loops;
         int thread_id;
     } arg_t;
 
+    void printsem(const char* str, sem_t* sem, ...){
+        sem_wait(&printlock);
+        int semval = 0;
+        sem_getvalue(sem, &semval);
+        va_list va;
+        va_start(va, str);
+        vprintf(str, va);
+        va_end(va);
+        printf(" = %d\n", semval);
+        sem_post(&printlock);
+    }
+
     int left(int p){
         return p;
     }
     int right(int p){
-        return (p + 1) % 5;
+        return (p + 1) % MAX;
     }
 
     void get_forks(int p){
-        if(p == MAX / 2){
+        //break dependency on last philosopher by looking at right first
+        //solve deadlock
+        
+        if(p == MAX - 1){
+            printf(">>>>>>>>>>>>>>>>>switched ");
+            printsem("philosopher#%d", &forks[p], p);
             sem_wait(&forks[right(p)]);
-            sem_wait(&forks[left(p)]);    
+            printsem("wait right: philosopher#%d", &forks[right(p)], right(p));
+            sem_wait(&forks[left(p)]);
+            printsem("wait myself: philosopher#%d", &forks[left(p)], left(p));
         }
         else{
+            printsem("philosopher#%d", &forks[p], p);
             sem_wait(&forks[left(p)]);
+            printsem("wait myself: philosopher#%d", &forks[left(p)], left(p));
             sem_wait(&forks[right(p)]);
+            printsem("wait right: philosopher#%d", &forks[right(p)], right(p));
         }
     }
 
@@ -551,6 +588,7 @@ namespace diningtable{
 
     void* philosopher(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
+
         int p = arg->thread_id;
 
         for(int i = 0; i < arg->num_loops; i++){
@@ -559,9 +597,12 @@ namespace diningtable{
             eat(p);
             put_forks(p);
         }
+        printf("philosopher#%d ends.\n", p);
     }
 
     void test(){
+        sem_init(&printlock, 0, 1);
+
         for(int i = 0; i < MAX; i++){
             //init binary sems
             sem_init(&forks[i], 0, 1);
