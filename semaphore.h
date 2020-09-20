@@ -400,8 +400,32 @@ namespace putandget_mutex{
 }
 
 
-//lock: for readlock
-//writelock: for writelock
+//all reads locked on one write thread
+//one write locked on all read threads.
+/*
+writer buffer[8] = 40
+buffer count = 23
+writer buffer[9] = 45
+buffer count = 24
+after writelock release, writelock post = 1
+after readlock acquire, readers = 1, writelock wait = 0
+reader#0 buffer[0] = 0
+after readlock release, readers = 0, writelock wait = 1
+after readlock acquire, readers = 1, writelock wait = 0
+reader#1 buffer[1] = 5
+after readlock release, readers = 0, writelock wait = 1
+
+...
+
+after readlock acquire, readers = 1, writelock wait = 0
+reader#1 buffer[1] = 5
+after readlock release, readers = 0, writelock wait = 1
+after writelock acquire, writelock wait = 0
+writer buffer[0] = 0
+buffer count = 12
+writer buffer[1] = 6
+buffer count = 13
+*/
 namespace simple_readwritelock{
 
     typedef struct{
@@ -460,29 +484,29 @@ namespace simple_readwritelock{
         sem_init(&rwlock->writelock, 0, 1);
     }
 
+    //readlock
     void rwlock_acquire_readlock(rwlock_t* rwlock){
-        sem_wait(&rwlock->lock);
+        sem_wait(&rwlock->lock);    //mutex makes sure other reader threads will wait, for this one thread waiting..
         rwlock->readers++;
-        if(rwlock->readers == 1)
+        if(rwlock->readers == 1)    //make sure only one reader thread waits writelock.
             sem_wait(&rwlock->writelock);
         printsem("after readlock acquire, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
     }
-
     void rwlock_release_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
         rwlock->readers--;
-        if(rwlock->readers == 0)
+        if(rwlock->readers == 0)    //on release, last reader thread will post writelock.
             sem_post(&rwlock->writelock);
         printsem("after readlock release, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
     }
 
+    //writelock
     void rwlock_acquire_writelock(rwlock_t* rwlock){
         sem_wait(&rwlock->writelock);
         printsem("after writelock acquire, writelock wait", &rwlock->writelock);
     }
-    
     void rwlock_release_writelock(rwlock_t* rwlock){
         sem_post(&rwlock->writelock);
         printsem("after writelock release, writelock post", &rwlock->writelock);
