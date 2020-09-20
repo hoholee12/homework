@@ -1,6 +1,6 @@
 #pragma once
 #include"common.h"
-#define LOOPVAL 20
+#define LOOPVAL 10
 
 /*
 P(s), sem_wait(s):
@@ -462,7 +462,6 @@ namespace simple_readwritelock{
 
     void rwlock_acquire_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
-        printsem("before readlock acquire, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         rwlock->readers++;
         if(rwlock->readers == 1)
             sem_wait(&rwlock->writelock);
@@ -472,7 +471,6 @@ namespace simple_readwritelock{
 
     void rwlock_release_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
-        printsem("before readlock release, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         rwlock->readers--;
         if(rwlock->readers == 0)
             sem_post(&rwlock->writelock);
@@ -499,8 +497,7 @@ namespace simple_readwritelock{
                 put(arg->buffer, i * j);
             }
             rwlock_release_writelock(arg->rwlock);
-            //sleep(1);
-            
+            sched_yield();
         }
         printf("writer ended.\n");
     }
@@ -510,7 +507,8 @@ namespace simple_readwritelock{
         pid_t pid = arg->p;
         while(arg->buffer->count > 0){
             rwlock_acquire_readlock(arg->rwlock);
-            printf("reader#%d = %d\n", pid, arg->buffer->arr[pid]);
+            printf("reader#%d buffer[%d] = %d\n", pid, pid, arg->buffer->arr[pid]);
+            get(arg->buffer);   //make sure buffer decrements to stop when its over
             rwlock_release_readlock(arg->rwlock);
         }
         printf("reader#%d ended.\n", pid);
