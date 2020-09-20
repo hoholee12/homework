@@ -442,7 +442,7 @@ namespace simple_readwritelock{
     void put(buffer_t* buffer, int value){
         buffer->arr[buffer->fill_index] = value;
         buffer->fill_index = (buffer->fill_index + 1) % MAX;
-        printf("a buffer count = %d\n", buffer->count);
+        printf("buffer count = %d\n", buffer->count);
         buffer->count++;
     }
     int get(buffer_t* buffer){
@@ -462,8 +462,9 @@ namespace simple_readwritelock{
 
     void rwlock_acquire_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
+        printsem("before readlock acquire, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         rwlock->readers++;
-        if(rwlock->readers == 1)    //
+        if(rwlock->readers == 1)
             sem_wait(&rwlock->writelock);
         printsem("after readlock acquire, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
@@ -471,9 +472,10 @@ namespace simple_readwritelock{
 
     void rwlock_release_readlock(rwlock_t* rwlock){
         sem_wait(&rwlock->lock);
+        printsem("before readlock release, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         rwlock->readers--;
         if(rwlock->readers == 0)
-            sem_wait(&rwlock->writelock);
+            sem_post(&rwlock->writelock);
         printsem("after readlock release, readers = %d, writelock wait", &rwlock->writelock, rwlock->readers);
         sem_post(&rwlock->lock);
     }
@@ -491,16 +493,12 @@ namespace simple_readwritelock{
     void* writer_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
         for(int i = 0; i < LOOPVAL; i++){
-            printf("writer 0\n");
             rwlock_acquire_writelock(arg->rwlock);
-            printf("writer 1\n");
             for(int j = 0; j < MAX; j++){
-                printf("writer[%d] = %d\n", j, i * j);
+                printf("writer buffer[%d] = %d\n", j, i * j);
                 put(arg->buffer, i * j);
             }
-            printf("writer 2\n");
             rwlock_release_writelock(arg->rwlock);
-            printf("writer 3\n");
             //sleep(1);
             
         }
@@ -510,15 +508,10 @@ namespace simple_readwritelock{
     void* reader_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
         pid_t pid = arg->p;
-        printf("b buffer count = %d\n", arg->buffer->count);
         while(arg->buffer->count > 0){
-            printf("reader#%d 0\n", pid);
             rwlock_acquire_readlock(arg->rwlock);
-            printf("reader#%d 1\n", pid);
             printf("reader#%d = %d\n", pid, arg->buffer->arr[pid]);
-            printf("reader#%d 2\n", pid);
             rwlock_release_readlock(arg->rwlock);
-            printf("reader#%d 3\n", pid);
         }
         printf("reader#%d ended.\n", pid);
     }
