@@ -416,9 +416,24 @@ namespace simple_readwritelock{
     } buffer_t;
     
     typedef struct{
-        rwlock_t rwlock;
+        rwlock_t* rwlock;
         buffer_t buffer;
+        int p; //id
     } arg_t;
+
+    sem_t printlock;
+
+    void printsem(const char* str, sem_t* sem, ...){
+        sem_wait(&printlock);
+        int semval = 0;
+        sem_getvalue(sem, &semval);
+        va_list va;
+        va_start(va, str);
+        vprintf(str, va);
+        va_end(va);
+        printf(" = %d\n", semval);
+        sem_post(&printlock);
+    }
 
     void put(buffer_t* buffer, int value){
         buffer->arr[buffer->fill_index] = value;
@@ -468,40 +483,58 @@ namespace simple_readwritelock{
         arg_t* arg = (arg_t*)arg_tmp;
         for(int i = 0; i < LOOPVAL; i++){
             printf("writer 0\n");
-            rwlock_acquire_readlock(&arg->rwlock);
+            rwlock_acquire_writelock(arg->rwlock);
             printf("writer 1\n");
             for(int j = 0; j < MAX; j++){
+                printf("writer[%d] = %d\n", j, i * j);
                 put(&arg->buffer, i * j);
             }
             printf("writer 2\n");
-            rwlock_release_readlock(&arg->rwlock);
+            rwlock_release_writelock(arg->rwlock);
             printf("writer 3\n");
+            sleep(1);
+            
         }
+        printf("writer ended.\n");
     }
 
     void* reader_thread(void* arg_tmp){
         arg_t* arg = (arg_t*)arg_tmp;
-        pid_t pid = gettid() % MAX;
-        int temp = 0;
-        while(temp < (LOOPVAL - 2) * MAX){
-            rwlock_acquire_writelock(&arg->rwlock);
-            temp = get(&arg->buffer);
-            printf("%d\n", temp);
-            rwlock_release_writelock(&arg->rwlock);
+        pid_t pid = arg->p;
+        while(arg->buffer.count > 0){
+            printf("reader#%d 0\n", pid);
+            rwlock_acquire_readlock(arg->rwlock);
+            printf("reader#%d 1\n", pid);
+            printf("reader#%d = %d\n", pid, arg->buffer.arr[pid]);
+            printf("reader#%d 2\n", pid);
+            rwlock_release_readlock(arg->rwlock);
+            printf("reader#%d 3\n", pid);
         }
+        printf("reader#%d ended.\n", pid);
     }
 
     void test(){
-        arg_t arg = {0};
-        rwlock_init(&arg.rwlock);
+        arg_t writer_arg = {0};
+        arg_t reader_args[MAX] = {0};
+        rwlock_t rwlock;
+        rwlock_init(&rwlock);
+
+        writer_arg.rwlock = &rwlock;
+        for(int i = 0; i < MAX; i++){
+            reader_args[i].rwlock = &rwlock;
+            reader_args[i].p = i;
+        }
+
+        sem_init(&printlock, 0, 1);
         
         pthread_t writer = 0;
         pthread_t reader[MAX] = {0};
 
         printf("begin\n");
-        pthread_create(&writer, NULL, writer_thread, &arg);
-        for(int i = 0; i < MAX; i++)
-            pthread_create(&reader[i], NULL, reader_thread, &arg);
+        pthread_create(&writer, NULL, writer_thread, &writer_arg);
+        for(int i = 0; i < MAX; i++){
+            pthread_create(&reader[i], NULL, reader_thread, &reader_args[i]);
+        }
 
         pthread_join(writer, NULL);
         for(int i = 0; i < MAX; i++)
@@ -514,6 +547,9 @@ namespace simple_readwritelock{
 }
 
 //dining philosophers problem(round table)
+//break dependency on any one of the philosopher(last one for example)
+//by switching which one to lookup first...
+//solves deadlock
 /*
 thread#8 thinks...
 philosopher#8 = 1
@@ -559,7 +595,7 @@ namespace diningtable{
 
     void get_forks(int p){
         //break dependency on any one of the philosopher(last one for example)
-        //by switching which one to lookup
+        //by switching which one to lookup first
         
         //solves deadlock
         

@@ -6,8 +6,8 @@ int main(int argc, char* argv[]){
     //putandget::test();
     //putandget_mutex::test();
 
-    //simple_readwritelock::test();
+    simple_readwritelock::test();
 
-    diningtable::test();
+    //diningtable::test();
     return 0;
 }
