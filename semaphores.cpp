@@ -1,4 +1,4 @@
-#include"semaphore.h"
+#include"semaphores.h"
 
 int main(int argc, char* argv[]){
     //parentchild::test();
